@@ -1,0 +1,58 @@
+name: Build desktop app
+
+# Builds the Mura desktop app for Windows, macOS, and Linux and attaches the
+# installers to a GitHub Release. Push a tag like "v1.0.0" to trigger a real
+# release; use the manual "Run workflow" button for a one-off test build
+# (uploaded as workflow artifacts instead of a release).
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            dist-script: dist:win
+          - os: macos-latest
+            dist-script: dist:mac
+          - os: ubuntu-latest
+            dist-script: dist:linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - run: npm run ${{ matrix.dist-script }}
+
+      # electron-builder's output filenames vary by OS/target (.exe, .dmg,
+      # .AppImage); grab everything in dist-electron except the unpacked
+      # debug folders so each OS uploads just its installer(s).
+      - name: Collect installer(s)
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          find dist-electron -maxdepth 1 -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.zip" \) -exec cp {} artifacts/ \;
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mura-${{ matrix.os }}
+          path: artifacts/*
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*

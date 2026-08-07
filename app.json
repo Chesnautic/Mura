@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "Mura",
+    "slug": "mura",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "mura",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#12081E",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#12081E"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mura.visualizer",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Mura can visualize sound from your microphone in Live mode.",
+        "NSPhotoLibraryAddUsageDescription": "Mura saves your exported visualizer videos and audio to your photo library."
+      }
+    },
+    "android": {
+      "package": "com.mura.visualizer",
+      "adaptiveIcon": {
+        "backgroundColor": "#12081E",
+        "foregroundImage": "./assets/adaptive-icon-foreground.png",
+        "backgroundImage": "./assets/adaptive-icon-background.png",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "RECORD_AUDIO",
+        "READ_MEDIA_AUDIO",
+        "READ_MEDIA_VIDEO",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-audio",
+      "expo-video",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Mura saves your exported visualizer videos to your library.",
+          "savePhotosPermission": "Mura saves your exported visualizer videos to your library.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
+      ]
+    ]
+  }
+}

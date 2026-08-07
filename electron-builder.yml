@@ -1,0 +1,54 @@
+# electron-builder config for the Mura desktop app.
+#
+# Kept as a separate file (rather than package.json's "build" field) so it
+# can safely override "main" via extraMetadata: the root package.json's
+# "main" field ("index.ts") has to stay pointed at the Expo/Metro app entry
+# for `npx expo start` / Expo Go / native builds to keep working -- this file
+# is the only place the *packaged desktop app* is told to actually boot from
+# electron/main.js instead.
+appId: com.mura.desktop
+productName: Mura
+directories:
+  output: dist-electron
+  buildResources: build-resources
+
+extraMetadata:
+  main: electron/main.js
+
+# Only what the packaged app actually runs needs to ship: the pre-bundled
+# web build (dist/, produced by `npm run build:web`), the Electron
+# main/preload scripts, and the two packages whose real binaries the main
+# process spawns (ffmpeg-static/ffprobe-static). Every other entry in
+# package.json's "dependencies" (expo, react-native, all the RN native
+# modules) is already baked into dist/'s single JS bundle by Metro and isn't
+# needed as a physical node_modules package at runtime -- excluding them
+# keeps installers from ballooning to hundreds of MB of unused source.
+files:
+  - dist/**
+  - electron/**
+  - "!node_modules/**"
+  - node_modules/ffmpeg-static/**
+  - node_modules/ffprobe-static/**
+
+asarUnpack:
+  - node_modules/ffmpeg-static/**
+  - node_modules/ffprobe-static/**
+
+mac:
+  category: public.app-category.music
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: AudioVideo
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
