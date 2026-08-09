@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Dimensions, Platform } from "react-native";
+import React, { useEffect, useRef } from "react";
+import { View, Text, StyleSheet, Pressable, Platform, useWindowDimensions } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from "expo-audio";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -8,15 +9,26 @@ import { useLiveAudioFeatures } from "../audio/useLiveAudioFeatures";
 import { useMuraStore } from "../state/store";
 import { getWaveformPreset, WAVEFORM_PRESETS } from "../visualizer/registry";
 import { COLORS, PillButton, ScreenContainer } from "../components/ui";
+import { WaveformExplorer } from "../components/WaveformExplorer";
 import { getDesktopBridge } from "../export/desktopBridge";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
-const { width: SCREEN_W } = Dimensions.get("window");
-const CANVAS_H = Math.round(SCREEN_W * 1.15);
+// Below this window width, Mura uses the phone-style single-column layout
+// (the same one Expo Go/a real phone gets). At or above it -- a resized or
+// maximized desktop window -- it switches to a three-column layout: nav on
+// the left, a fixed phone-sized preview in the middle, and the waveform
+// picker on the right, since there's room to show all of it directly
+// instead of navigating between full-screen phone-shaped pages.
+const DESKTOP_BREAKPOINT = 900;
+const PHONE_PREVIEW_W = 390;
+const PHONE_PREVIEW_H = Math.round(PHONE_PREVIEW_W * 1.15);
 
 export function HomeScreen({ navigation }: Props) {
+  const { width: windowW } = useWindowDimensions();
+  const isDesktopLayout = Platform.OS === "web" && windowW >= DESKTOP_BREAKPOINT;
+
   const waveformId = useMuraStore((s) => s.waveformId);
   const palette = useMuraStore((s) => s.palette);
   const reactivity = useMuraStore((s) => s.reactivity);
@@ -70,6 +82,72 @@ export function HomeScreen({ navigation }: Props) {
 
   const preset = getWaveformPreset(waveformId);
 
+  if (isDesktopLayout) {
+    return (
+      <SafeAreaView style={styles.desktopSafe} edges={["top", "left", "right"]}>
+        <View style={styles.desktopRoot}>
+          <View style={styles.leftRail}>
+            <Text style={styles.brand}>Mura</Text>
+            <Text style={styles.tagline}>{preset.name}</Text>
+            <Pressable onPress={() => navigation.navigate("Export")} style={[styles.exportBtn, { marginTop: 14 }]}>
+              <Text style={styles.exportBtnText}>Export</Text>
+            </Pressable>
+
+            <View style={styles.railSection}>
+              <PillButton label="Icon Drops" onPress={() => navigation.navigate("IconDrops")} variant="ghost" />
+              <PillButton label="Color Studio" onPress={() => navigation.navigate("Colors")} variant="ghost" />
+              <PillButton label="Reactivity" onPress={() => navigation.navigate("Reactivity")} variant="ghost" />
+            </View>
+
+            <View style={styles.railSection}>
+              <PillButton label="Shuffle waveform" onPress={() => randomizeWaveform(WAVEFORM_PRESETS.map((p) => p.id))} />
+              <PillButton label="Randomize colors" onPress={randomizePalette} />
+            </View>
+          </View>
+
+          <View style={styles.centerColumn}>
+            <View
+              style={[
+                styles.canvasWrap,
+                { width: PHONE_PREVIEW_W, height: PHONE_PREVIEW_H, backgroundColor: rgbCss(palette.background) },
+              ]}
+            >
+              <VisualizerCanvas
+                width={PHONE_PREVIEW_W}
+                height={PHONE_PREVIEW_H}
+                waveformId={waveformId}
+                palette={palette}
+                reactivity={reactivity}
+                iconDropConfig={iconDropConfig}
+                featuresSource={features}
+              />
+            </View>
+
+            <View style={[styles.transportRow, { width: PHONE_PREVIEW_W }]}>
+              <Pressable style={styles.pickBtn} onPress={pickAudio}>
+                <Text style={styles.pickBtnText} numberOfLines={1}>
+                  {audioSource ? audioSource.name : "Choose a song"}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={styles.playBtn}
+                disabled={!audioSource}
+                onPress={() => (status.playing ? player.pause() : player.play())}
+              >
+                <Text style={styles.playBtnText}>{status.playing ? "Pause" : "Play"}</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.rightPanel}>
+            <Text style={styles.rightPanelTitle}>Waveforms ({WAVEFORM_PRESETS.length})</Text>
+            <WaveformExplorer />
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <ScreenContainer scroll={false}>
       <View style={styles.header}>
@@ -82,10 +160,10 @@ export function HomeScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      <View style={[styles.canvasWrap, { backgroundColor: rgbCss(palette.background) }]}>
+      <View style={[styles.canvasWrap, { width: windowW - 32, height: Math.round((windowW - 32) * 1.15), backgroundColor: rgbCss(palette.background) }]}>
         <VisualizerCanvas
-          width={SCREEN_W - 32}
-          height={CANVAS_H}
+          width={windowW - 32}
+          height={Math.round((windowW - 32) * 1.15)}
           waveformId={waveformId}
           palette={palette}
           reactivity={reactivity}
@@ -136,7 +214,7 @@ const styles = StyleSheet.create({
   },
   brand: { color: COLORS.text, fontSize: 28, fontWeight: "800" },
   tagline: { color: COLORS.textDim, fontSize: 13, marginTop: 2 },
-  exportBtn: { backgroundColor: COLORS.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 18 },
+  exportBtn: { backgroundColor: COLORS.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 18, alignSelf: "flex-start" },
   exportBtnText: { color: "#1A0A12", fontWeight: "700" },
   canvasWrap: {
     marginHorizontal: 16,
@@ -161,4 +239,28 @@ const styles = StyleSheet.create({
   playBtnText: { color: "#1A0A12", fontWeight: "700" },
   quickRow: { flexDirection: "row", gap: 10, paddingHorizontal: 16, marginTop: 14, flexWrap: "wrap" },
   navRow: { flexDirection: "row", gap: 10, paddingHorizontal: 16, marginTop: 10, flexWrap: "wrap" },
+
+  // --- desktop (wide window) layout ---
+  desktopSafe: { flex: 1, backgroundColor: COLORS.bg },
+  desktopRoot: { flex: 1, flexDirection: "row" },
+  leftRail: {
+    width: 240,
+    padding: 20,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.border,
+  },
+  railSection: { marginTop: 24, gap: 10, alignItems: "flex-start" },
+  centerColumn: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+  },
+  rightPanel: {
+    width: 380,
+    padding: 20,
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.border,
+  },
+  rightPanelTitle: { color: COLORS.text, fontSize: 16, fontWeight: "800", marginBottom: 14 },
 });

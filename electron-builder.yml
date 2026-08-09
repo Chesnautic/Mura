@@ -10,7 +10,15 @@ appId: com.mura.desktop
 productName: Mura
 directories:
   output: dist-electron
-  buildResources: build-resources
+
+# assets/icon.png is the same 1024x1024 source the mobile app icon comes
+# from (tools/generate_icon.py). electron-builder converts a single PNG at
+# this resolution into whatever each platform actually needs (.icns for
+# mac, .ico for Windows); Linux uses the PNG directly. Without this,
+# electron-builder falls back to the generic Electron icon everywhere --
+# the installer, the taskbar, the dock -- which is the "icon isn't there"
+# problem.
+icon: assets/icon.png
 
 extraMetadata:
   main: electron/main.js
@@ -34,6 +42,7 @@ publish: null
 files:
   - dist/**
   - electron/**
+  - assets/icon.png
   - "!node_modules/**"
   - node_modules/ffmpeg-static/**
   - node_modules/ffprobe-static/**

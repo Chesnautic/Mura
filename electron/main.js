@@ -222,12 +222,18 @@ function registerIpcHandlers() {
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 480,
-    height: 900,
+    // A real desktop-sized default window -- not the phone-shaped one this
+    // used to open at, which never left room for the desktop 3-column
+    // layout (App.tsx switches to it at windowW >= 900) and made a
+    // maximized window just look like a tiny phone screen glued to the
+    // top-left corner with empty space around it.
+    width: 1360,
+    height: 860,
     minWidth: 380,
     minHeight: 700,
     backgroundColor: "#0E0818",
     title: "Mura",
+    icon: path.join(__dirname, "..", "assets", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
