@@ -1,6 +1,8 @@
 {
   "name": "mura",
   "version": "1.0.0",
+  "description": "A waveform-obsessed music visualizer with 50 waveform types, falling icon drops, and full color control.",
+  "author": "Mura",
   "main": "index.ts",
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

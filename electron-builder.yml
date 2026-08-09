@@ -15,6 +15,14 @@ directories:
 extraMetadata:
   main: electron/main.js
 
+# We're not setting up auto-update feeds (that needs a "repository" field in
+# package.json and a real publish target) -- just plain downloadable
+# installers attached to GitHub Releases by the CI workflow. Without this,
+# electron-builder still tries to compute update-feed metadata for a
+# "repository" it can't find and crashes outright (`Cannot read properties
+# of null (reading 'channel')`) instead of just skipping it.
+publish: null
+
 # Only what the packaged app actually runs needs to ship: the pre-bundled
 # web build (dist/, produced by `npm run build:web`), the Electron
 # main/preload scripts, and the two packages whose real binaries the main
