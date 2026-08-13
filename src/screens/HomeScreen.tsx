@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Platform, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
@@ -10,8 +10,24 @@ import { useMuraStore } from "../state/store";
 import { getWaveformPreset, WAVEFORM_PRESETS } from "../visualizer/registry";
 import { COLORS, PillButton, ScreenContainer } from "../components/ui";
 import { WaveformExplorer } from "../components/WaveformExplorer";
+import { IconDropExplorer } from "../components/IconDropExplorer";
+import { ColorStudioPanel } from "../components/ColorStudioPanel";
+import { ReactivityPanel } from "../components/ReactivityPanel";
 import { getDesktopBridge } from "../export/desktopBridge";
 import type { RootStackParamList } from "../navigation/RootNavigator";
+
+// Which single control panel is showing in the desktop layout's right-hand
+// column. Exactly one of these is ever visible at a time -- switching is
+// local state, never navigation, so the left rail and the live preview in
+// the center column stay on screen the whole time.
+type DesktopPanel = "waveforms" | "iconDrops" | "colors" | "reactivity";
+
+const PANEL_TITLES: Record<DesktopPanel, string> = {
+  waveforms: `Waveforms (${WAVEFORM_PRESETS.length})`,
+  iconDrops: "Icon Drops",
+  colors: "Color Studio",
+  reactivity: "Reactivity",
+};
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
@@ -28,6 +44,7 @@ const PHONE_PREVIEW_H = Math.round(PHONE_PREVIEW_W * 1.15);
 export function HomeScreen({ navigation }: Props) {
   const { width: windowW } = useWindowDimensions();
   const isDesktopLayout = Platform.OS === "web" && windowW >= DESKTOP_BREAKPOINT;
+  const [desktopPanel, setDesktopPanel] = useState<DesktopPanel>("waveforms");
 
   const waveformId = useMuraStore((s) => s.waveformId);
   const palette = useMuraStore((s) => s.palette);
@@ -94,9 +111,30 @@ export function HomeScreen({ navigation }: Props) {
             </Pressable>
 
             <View style={styles.railSection}>
-              <PillButton label="Icon Drops" onPress={() => navigation.navigate("IconDrops")} variant="ghost" />
-              <PillButton label="Color Studio" onPress={() => navigation.navigate("Colors")} variant="ghost" />
-              <PillButton label="Reactivity" onPress={() => navigation.navigate("Reactivity")} variant="ghost" />
+              <PillButton
+                label="Waveforms"
+                onPress={() => setDesktopPanel("waveforms")}
+                variant="ghost"
+                active={desktopPanel === "waveforms"}
+              />
+              <PillButton
+                label="Icon Drops"
+                onPress={() => setDesktopPanel("iconDrops")}
+                variant="ghost"
+                active={desktopPanel === "iconDrops"}
+              />
+              <PillButton
+                label="Color Studio"
+                onPress={() => setDesktopPanel("colors")}
+                variant="ghost"
+                active={desktopPanel === "colors"}
+              />
+              <PillButton
+                label="Reactivity"
+                onPress={() => setDesktopPanel("reactivity")}
+                variant="ghost"
+                active={desktopPanel === "reactivity"}
+              />
             </View>
 
             <View style={styles.railSection}>
@@ -140,8 +178,11 @@ export function HomeScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.rightPanel}>
-            <Text style={styles.rightPanelTitle}>Waveforms ({WAVEFORM_PRESETS.length})</Text>
-            <WaveformExplorer />
+            <Text style={styles.rightPanelTitle}>{PANEL_TITLES[desktopPanel]}</Text>
+            {desktopPanel === "waveforms" && <WaveformExplorer />}
+            {desktopPanel === "iconDrops" && <IconDropExplorer />}
+            {desktopPanel === "colors" && <ColorStudioPanel />}
+            {desktopPanel === "reactivity" && <ReactivityPanel />}
           </View>
         </View>
       </SafeAreaView>

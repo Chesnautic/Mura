@@ -116,14 +116,27 @@ export function SceneLayer({ commands }: { commands: DrawCmd[] }) {
  */
 export function drawSceneImperative(canvas: SkCanvas, commands: DrawCmd[]): void {
   for (const cmd of commands) {
-    const paint = Skia.Paint();
-    paint.setAntiAlias(true);
-
     if (cmd.kind === "clear") {
       canvas.drawColor(Skia.Color(cmd.color));
       continue;
     }
 
+    // Every Skia JSI object (Paint included) is backed by a real allocation
+    // that JS garbage collection doesn't know about -- on web specifically
+    // it's WASM heap memory, freed only by calling .dispose() explicitly.
+    // This function runs once per DrawCmd per exported video frame (so
+    // thousands of times per export); without the dispose() below, each one
+    // leaked a Paint for the lifetime of the whole export, which is exactly
+    // the kind of leak that made long exports progressively slower, then
+    // visually corrupt, then crash to a blank white renderer once available
+    // GPU/WASM memory ran out. (Paths are NOT disposed here the same way --
+    // tried it, and disposing one SkPath mid-loop corrupts CanvasKit-wasm's
+    // internal state badly enough that the *next* drawPath call hangs
+    // forever. Paths are much smaller allocations than the Surface/Image
+    // leak this was really about, so leaving them undisposed is the safe
+    // tradeoff.)
+    const paint = Skia.Paint();
+    paint.setAntiAlias(true);
     paint.setColor(Skia.Color(cmd.color));
     if ("opacity" in cmd && cmd.opacity !== undefined) paint.setAlphaf(cmd.opacity);
     if ("style" in cmd) {
@@ -155,5 +168,7 @@ export function drawSceneImperative(canvas: SkCanvas, commands: DrawCmd[]): void
         canvas.drawLine(cmd.x1, cmd.y1, cmd.x2, cmd.y2, paint);
         break;
     }
+
+    paint.dispose();
   }
 }

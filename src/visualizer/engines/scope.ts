@@ -163,7 +163,13 @@ export function createScopePresets(): WaveformPreset[] {
         const cy = ctx.height / 2;
         const cmds: DrawCmd[] = [bg(ctx)];
         const rings = 10;
-        const freq = 6 + ctx.features.treble * 10;
+        // Must be a whole number of wobble cycles per full turn -- otherwise
+        // sin(angle * freq) at angle=0 and angle=2*PI (the two ends of the
+        // ring, which path.close() joins back together) land on different
+        // values, and the closing segment jumps straight across the ring
+        // instead of following the wobble. That jump is exactly the "thick
+        // line" artifact reported at the seam (due east / angle=0).
+        const freq = Math.round(6 + ctx.features.treble * 10);
         for (let i = 1; i <= rings; i++) {
           const baseR = (i / rings) * Math.min(ctx.width, ctx.height) * 0.48;
           const path = Skia.Path.Make();

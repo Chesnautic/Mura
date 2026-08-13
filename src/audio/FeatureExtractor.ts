@@ -34,8 +34,11 @@ export class FeatureExtractor {
   private trebleEnv = 0;
   private onsetEnv = 0;
 
-  private recentLevels: number[] = [];
-  private recentLevelsMax = 43; // ~1s of history at ~23fps analysis windows
+  // Timestamped (not count-based) so the rolling window covers the same
+  // real-time duration regardless of how often push() is called -- see the
+  // comment above `smooth` for why that consistency matters.
+  private recentLevels: { v: number; t: number }[] = [];
+  private recentWindowSec = 1.0;
   private lastOnsetEnergy = 0;
   private dropCooldown = 0;
   private elapsed = 0;
@@ -96,32 +99,57 @@ export class FeatureExtractor {
       return count > 0 ? sum / count : 0;
     };
 
-    const bassRaw = bandEnergy(20, 250) * 14;
-    const midRaw = bandEnergy(250, 4000) * 22;
-    const trebleRaw = bandEnergy(4000, Math.min(16000, nyquist)) * 34;
+    // Clamped the same way `level` already is a few lines down -- unclamped,
+    // a loud/bassy passage can push these arbitrarily high, which visuals
+    // that multiply both a shape's position *and* its size by the raw value
+    // (e.g. Orbit Dots) turn into dots the size of the whole canvas flung
+    // off-screen -- reported as the preset "breaking."
+    const bassRaw = Math.min(2, bandEnergy(20, 250) * 14);
+    const midRaw = Math.min(2, bandEnergy(250, 4000) * 22);
+    const trebleRaw = Math.min(2, bandEnergy(4000, Math.min(16000, nyquist)) * 34);
 
     const spectrum = binSpectrum(mags, this.spectrumLen);
 
     // --- envelope smoothing (fast attack, slower release) ---
-    const smooth = (prev: number, next: number, attack: number, release: number) =>
-      next > prev ? prev + (next - prev) * attack : prev + (next - prev) * release;
+    // Time-constant based (not a flat per-call coefficient) so the *real*
+    // responsiveness stays the same no matter how often push() gets called.
+    // This matters a lot here: the live desktop preview calls push() at
+    // roughly the display's rAF rate (~60/s), while offline export analysis
+    // (OfflineAnalyzer.ts) deliberately calls it once per exported video
+    // frame (30/s, tied to the export fps) to keep renders deterministic. A
+    // flat coefficient like `prev + (next-prev)*0.9` decays twice as fast in
+    // real time at 60 calls/sec as it does at 30 -- so the exact same song
+    // produced a snappier, evenly-spread onset envelope live and a
+    // slower-decaying, plateau-ing one on export, which is what made icon
+    // drops spawn in even trickles live but clumped "waves" in the exported
+    // video (see buildFallingIconsScene's onset/isDrop-driven spawn bursts
+    // in iconDrops/fallingIconsEngine.ts). Reconstructed from the original
+    // flat coefficients at a 1/30s reference so exports render identically
+    // to before; every other call rate now matches that same real-time feel.
+    const smooth = (prev: number, next: number, attackTau: number, releaseTau: number) => {
+      const tau = next > prev ? attackTau : releaseTau;
+      const alpha = 1 - Math.exp(-dt / Math.max(1e-4, tau));
+      return prev + (next - prev) * alpha;
+    };
 
-    this.levelEnv = smooth(this.levelEnv, level, 0.7, 0.25);
-    this.bassEnv = smooth(this.bassEnv, bassRaw, 0.75, 0.2);
-    this.midEnv = smooth(this.midEnv, midRaw, 0.7, 0.25);
-    this.trebleEnv = smooth(this.trebleEnv, trebleRaw, 0.7, 0.3);
+    this.levelEnv = smooth(this.levelEnv, level, 0.0277, 0.1159);
+    this.bassEnv = smooth(this.bassEnv, bassRaw, 0.024, 0.1494);
+    this.midEnv = smooth(this.midEnv, midRaw, 0.0277, 0.1159);
+    this.trebleEnv = smooth(this.trebleEnv, trebleRaw, 0.0277, 0.0935);
 
     // --- onset/beat detection: energy rising sharply above its own recent average ---
     const energyNow = this.levelEnv + this.bassEnv * 0.6;
     const avgRecent =
       this.recentLevels.length > 0
-        ? this.recentLevels.reduce((a, b) => a + b, 0) / this.recentLevels.length
+        ? this.recentLevels.reduce((a, b) => a + b.v, 0) / this.recentLevels.length
         : energyNow;
     const rawOnset = Math.max(0, energyNow - avgRecent * 1.15 - 0.02) * 3.5;
-    this.onsetEnv = smooth(this.onsetEnv, rawOnset, 0.9, 0.35);
+    this.onsetEnv = smooth(this.onsetEnv, rawOnset, 0.0145, 0.0774);
 
-    this.recentLevels.push(energyNow);
-    if (this.recentLevels.length > this.recentLevelsMax) this.recentLevels.shift();
+    this.recentLevels.push({ v: energyNow, t: this.elapsed });
+    while (this.recentLevels.length > 0 && this.elapsed - this.recentLevels[0].t > this.recentWindowSec) {
+      this.recentLevels.shift();
+    }
 
     // --- drop detection: a big jump over a longer rolling baseline, rate-limited ---
     let isDrop = false;
@@ -189,7 +217,10 @@ function binSpectrum(mags: Float32Array, targetLen: number): number[] {
       sum += mags[b];
       count++;
     }
-    out.push(count > 0 ? (sum / count) * 30 : 0);
+    // Clamped for the same reason bass/mid/treble are above -- keeps
+    // spectrum-driven presets (Orbit Dots, Radial Burst, Sunflower Radial,
+    // Spiral Radial) from blowing up on loud peaks.
+    out.push(count > 0 ? Math.min(1.6, (sum / count) * 30) : 0);
   }
   return out;
 }

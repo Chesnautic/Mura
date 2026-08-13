@@ -17,11 +17,21 @@ const NO_FFMPEG_MESSAGE =
       "`npx expo prebuild` and open this project in a dev-client or standalone build to enable exporting. " +
       "Everything else in Mura (all 50 waveforms, icon drops, live preview, colors) works fine right here.";
 
+// Mura's visuals are all procedurally drawn shapes/particles/glow, not
+// photographic footage -- rendering them at a much higher resolution than
+// the live preview doesn't add any visible detail, it just costs more time
+// per frame (and, combined with a long song, more total frames). TikTok/
+// Reels itself only requires the right 9:16 *shape*, not any particular
+// pixel count. So the default here is sized close to the live preview
+// (PHONE_PREVIEW_W in HomeScreen.tsx is 390) rather than a full 1080x1920 --
+// same look, several times fewer pixels to raster per frame. The larger
+// options are still here for anyone who wants to upscale for a bigger
+// screen, just no longer the default.
 const RESOLUTIONS: { label: string; width: number; height: number }[] = [
-  { label: "1080x1920 (Reels/TikTok)", width: 1080, height: 1920 },
+  { label: "720x1280 (TikTok/Reels -- fast, recommended)", width: 720, height: 1280 },
+  { label: "1080x1920 (TikTok/Reels -- high-res, slower)", width: 1080, height: 1920 },
   { label: "1080x1080 (Square)", width: 1080, height: 1080 },
   { label: "1920x1080 (Landscape)", width: 1920, height: 1080 },
-  { label: "720x1280 (Fast preview)", width: 720, height: 1280 },
 ];
 
 export function ExportScreen() {
